@@ -1,7 +1,10 @@
 from openai import AsyncOpenAI
 from config import AI_API_KEY, AI_API_BASE, AI_MODEL
+from logger import get_logger
 
-client = AsyncOpenAI(api_key=AI_API_KEY, base_url=AI_API_BASE)
+logger = get_logger(__name__)
+
+client = AsyncOpenAI(api_key=AI_API_KEY, base_url=AI_API_BASE) if AI_API_KEY else None
 
 SYSTEM_PROMPT = """你是一个专业的量化交易分析助手。用户会将来自聚宽（JoinQuant）量化平台的交易信号、策略日志或市场数据发送给你。
 
@@ -14,9 +17,10 @@ SYSTEM_PROMPT = """你是一个专业的量化交易分析助手。用户会将�
 
 
 async def analyze_message(content: str) -> str | None:
-    """用 AI 分析消息内容，返回分析结果"""
-    if not AI_API_KEY:
+    if client is None:
+        logger.debug("AI_API_KEY 未配置，跳过分析")
         return None
+    logger.info("开始 AI 分析 | model=%s | content=%s", AI_MODEL, content[:80])
     try:
         response = await client.chat.completions.create(
             model=AI_MODEL,
@@ -27,7 +31,9 @@ async def analyze_message(content: str) -> str | None:
             temperature=0.3,
             max_tokens=1000,
         )
-        return response.choices[0].message.content
+        result = response.choices[0].message.content
+        logger.info("AI 分析完成 | result=%s", result[:80] if result else "(空)")
+        return result
     except Exception as e:
-        print(f"[AI] 分析失败: {e}")
+        logger.error("AI 分析失败 | error=%s", e)
         return None
